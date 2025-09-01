@@ -1,12 +1,15 @@
+use once_cell::sync::Lazy;
 use secrecy::SecretString;
 use sqlx::{Connection, PgConnection, PgPool};
-use std::{process::Command, sync::OnceLock};
 use uuid::Uuid;
 
 use bale_backend::{
     app::{get_db_pool, Application},
     config::{get_config, DatabaseSettings},
 };
+
+// TEST APP
+// -------------------------------------------------------------------------------------
 
 pub struct TestApp {
     pub address: String,
@@ -17,9 +20,6 @@ pub struct TestApp {
 
 impl TestApp {
     pub async fn build() -> Self {
-        //Initialize Postgres instance once
-        // init_db_once();
-
         let config = {
             let mut c = get_config().expect("Failed to read configuration.");
             c.database.database_name = Uuid::new_v4().to_string();
@@ -52,6 +52,9 @@ impl TestApp {
     }
 }
 
+// DATABASE SETUP AND INITIALIZATION
+// -------------------------------------------------------------------------------------
+
 async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let admin_settings = DatabaseSettings {
         database_name: "postgres".to_string(),
@@ -71,21 +74,10 @@ async fn configure_database(config: &DatabaseSettings) -> PgPool {
     let connection_pool = PgPool::connect_with(config.connect_options())
         .await
         .expect("Failed to connect to Postgres.");
-    sqlx::migrate!("./migrations")
+    sqlx::migrate!("./migrations_temp")
         .run(&connection_pool)
         .await
         .expect("Failed to run migrations.");
 
     connection_pool
-}
-
-static INIT_DB: OnceLock<()> = OnceLock::new();
-
-fn init_db_once() {
-    INIT_DB.get_or_init(|| {
-        let status = Command::new(".scripts/init_db.sh")
-            .status()
-            .expect("Failed to initialize database.");
-        assert!(status.success());
-    });
 }
