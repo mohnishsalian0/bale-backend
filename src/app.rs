@@ -11,7 +11,10 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::{
     config::{DatabaseSettings, Settings},
-    routes::{companies::create_company, healthcheck::health_check},
+    routes::{
+        companies::{create_company, get_company},
+        healthcheck::health_check,
+    },
 };
 
 pub struct Application {
@@ -33,6 +36,7 @@ impl Application {
         let app: Router = Router::new()
             .route("/health_check", get(health_check))
             .route("/companies", post(create_company))
+            .route("/companies/{company_id}", get(get_company))
             .with_state(Arc::new(db_pool));
 
         let server = axum::serve(listener, app);

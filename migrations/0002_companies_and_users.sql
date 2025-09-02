@@ -22,7 +22,7 @@ CREATE TABLE companies (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID,
+    created_by UUID NOT NULL,
     modified_by UUID,
     deleted_at TIMESTAMPTZ
 );
@@ -54,7 +54,7 @@ CREATE TABLE users (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID,
+    created_by UUID NOT NULL,
     modified_by UUID,
     deleted_at TIMESTAMPTZ,
     

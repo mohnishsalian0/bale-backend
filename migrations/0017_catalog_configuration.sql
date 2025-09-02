@@ -39,7 +39,7 @@ CREATE TABLE catalog_configurations (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES users(id),
+    created_by UUID NOT NULL REFERENCES users(id),
     modified_by UUID REFERENCES users(id),
     
     UNIQUE(company_id)

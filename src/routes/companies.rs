@@ -1,10 +1,43 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use serde::Deserialize;
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ERROR
+// -------------------------------------------------------------------------------------
+
+#[derive(Debug, thiserror::Error)]
+pub enum CompanyError {
+    #[error("{0}")]
+    ValidationError(String),
+    #[error("Company not found")]
+    NotFound,
+    #[error(transparent)]
+    UnexpectedError(#[from] anyhow::Error),
+}
+
+impl IntoResponse for CompanyError {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            Self::ValidationError(_) => StatusCode::BAD_REQUEST,
+            Self::NotFound => StatusCode::NOT_FOUND,
+            Self::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+        .into_response()
+    }
+}
+
+// CREATE
+// -------------------------------------------------------------------------------------
 
 #[derive(Default, Debug, Clone, Deserialize)]
 pub struct NewCompany {
@@ -21,41 +54,20 @@ pub struct NewCompany {
     logo_url: Option<String>,
 }
 
-// ERROR
-// -------------------------------------------------------------------------------------
-
-#[derive(Debug, thiserror::Error)]
-pub enum CompanyError {
-    #[error("{0}")]
-    ValidationError(String),
-    #[error(transparent)]
-    UnexpectedError(#[from] anyhow::Error),
-}
-
-impl IntoResponse for CompanyError {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            Self::ValidationError(_) => StatusCode::BAD_REQUEST,
-            Self::UnexpectedError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-        }
-        .into_response()
-    }
-}
-
-// CREATE
-// -------------------------------------------------------------------------------------
-
 pub async fn create_company(
     State(db_pool): State<Arc<PgPool>>,
     Json(new_company): Json<NewCompany>,
-) -> Result<StatusCode, CompanyError> {
-    let _company_id = insert_company(&db_pool, &new_company)
+) -> Result<(StatusCode, Json<Uuid>), CompanyError> {
+    let company_id = insert_company_in_db(&db_pool, &new_company)
         .await
         .context("Failed to insert company in the database.")?;
-    Ok(StatusCode::OK)
+    Ok((StatusCode::CREATED, Json(company_id)))
 }
 
-async fn insert_company(db_pool: &PgPool, new_company: &NewCompany) -> Result<Uuid, sqlx::Error> {
+async fn insert_company_in_db(
+    db_pool: &PgPool,
+    new_company: &NewCompany,
+) -> Result<Uuid, sqlx::Error> {
     let id = sqlx::query_scalar!(
                 r#"
                 INSERT INTO companies (name, address_line1, address_line2, city, state, country, pin_code, business_type, gst_number, pan_number, logo_url)
@@ -77,4 +89,55 @@ async fn insert_company(db_pool: &PgPool, new_company: &NewCompany) -> Result<Uu
       .fetch_one(db_pool)
       .await?;
     Ok(id)
+}
+
+// READ
+// -------------------------------------------------------------------------------------
+
+#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+pub struct Company {
+    pub id: Uuid,
+    pub name: String,
+    pub address_line1: Option<String>,
+    pub address_line2: Option<String>,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub country: Option<String>,
+    pub pin_code: Option<String>,
+    pub business_type: Option<String>,
+    pub gst_number: Option<String>,
+    pub pan_number: Option<String>,
+    pub logo_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub created_by: Option<Uuid>,
+    pub modified_by: Option<Uuid>,
+    pub deleted_at: Option<DateTime<Utc>>,
+}
+
+pub async fn get_company(
+    State(db_pool): State<Arc<PgPool>>,
+    Path(company_id): Path<Uuid>,
+) -> Result<Json<Company>, CompanyError> {
+    let company = fetch_company_from_db(&db_pool, company_id)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => CompanyError::NotFound,
+            _ => CompanyError::UnexpectedError(anyhow::Error::from(e).context("Failed to fetch company from database.")),
+        })?;
+    Ok(Json(company))
+}
+
+async fn fetch_company_from_db(db_pool: &PgPool, company_id: Uuid) -> Result<Company, sqlx::Error> {
+    let company = sqlx::query_as!(
+        Company,
+        r#"
+        SELECT id, name, address_line1, address_line2, city, state, country, pin_code, business_type, gst_number, pan_number, logo_url, created_at, updated_at, created_by, modified_by, deleted_at from companies 
+        WHERE id = $1
+        "#,
+        company_id
+    )
+    .fetch_one(db_pool)
+    .await?;
+    Ok(company)
 }

@@ -46,7 +46,7 @@ CREATE TABLE goods_dispatches (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES users(id),
+    created_by UUID NOT NULL REFERENCES users(id),
     modified_by UUID REFERENCES users(id),
     deleted_at TIMESTAMPTZ,
     
@@ -124,7 +124,7 @@ CREATE TABLE goods_receipts (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES users(id),
+    created_by UUID NOT NULL REFERENCES users(id),
     modified_by UUID REFERENCES users(id),
     deleted_at TIMESTAMPTZ,
     

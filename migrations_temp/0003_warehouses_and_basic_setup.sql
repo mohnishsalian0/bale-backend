@@ -20,7 +20,7 @@ CREATE TABLE warehouses (
     -- Audit fields
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_by UUID REFERENCES users(id),
+    created_by UUID REFERENCES users(id) NOT NULL,
     modified_by UUID REFERENCES users(id),
     deleted_at TIMESTAMPTZ,
     
