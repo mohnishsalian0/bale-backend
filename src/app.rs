@@ -1,11 +1,17 @@
+use std::sync::Arc;
+
 use tokio::net::TcpListener;
 
-use axum::{http::status::StatusCode, routing::get, serve::Serve, Router};
+use axum::{
+    routing::{get, post},
+    serve::Serve,
+    Router,
+};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 
 use crate::{
     config::{DatabaseSettings, Settings},
-    routes::healthcheck::health_check,
+    routes::{companies::create_company, healthcheck::health_check},
 };
 
 pub struct Application {
@@ -23,9 +29,11 @@ impl Application {
         );
         let listener = TcpListener::bind(addr).await?;
         let port = listener.local_addr().unwrap().port();
-        // let server =
 
-        let app: Router = Router::new().route("/health_check", get(health_check));
+        let app: Router = Router::new()
+            .route("/health_check", get(health_check))
+            .route("/companies", post(create_company))
+            .with_state(Arc::new(db_pool));
 
         let server = axum::serve(listener, app);
 

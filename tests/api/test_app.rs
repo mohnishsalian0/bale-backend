@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use secrecy::SecretString;
 use sqlx::{Connection, PgConnection, PgPool};
 use uuid::Uuid;
@@ -52,7 +51,7 @@ impl TestApp {
     }
 }
 
-// DATABASE SETUP AND INITIALIZATION
+// DATABASE CONFIGURATION
 // -------------------------------------------------------------------------------------
 
 async fn configure_database(config: &DatabaseSettings) -> PgPool {

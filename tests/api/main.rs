@@ -2,25 +2,26 @@ use ctor::{ctor, dtor};
 use once_cell::sync::Lazy;
 use std::{process::Command, sync::Mutex};
 
+mod companies;
 mod healthcheck;
 mod test_app;
-
-struct TestDbContainer {
-    id: String,
-}
 
 static DATABASE_CONTAINER_ID: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 #[ctor]
 fn setup() {
     println!("Starting database container...");
-    let output = Command::new("bash")
-        .arg(format!("{}/scripts/init_db.sh", env!("CARGO_MANIFEST_DIR")))
+    let script_path = format!("{}/scripts/init_db.sh", env!("CARGO_MANIFEST_DIR"));
+    let output = Command::new(script_path)
+        .env("DB_PORT", "5433")
+        .env("ENVIRONMENT", "test")
         .output()
         .expect("Failed to initialize database.");
 
     if output.status.success() {
         println!("Container started successfully!");
+    } else {
+        println!("Failed to start container");
     }
 
     let container_id = String::from_utf8(output.stdout)
@@ -44,6 +45,8 @@ fn cleanup() {
 
         if output.status.success() {
             println!("Container shut down successfully!");
+        } else {
+            println!("Failed to shut down container");
         }
     }
 }

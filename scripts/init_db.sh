@@ -16,19 +16,20 @@ SUPERUSER="${SUPERUSER:=postgres}"
 SUPERUSER_PWD="${SUPERUSER_PWD:=password}"
 APP_USER="${APP_USER:=app}"
 APP_USER_PWD="${APP_USER_PWD:=secret}"
-APP_DB_NAME="${APP_DB_NAME:=newsletter}"
+APP_DB_NAME="${APP_DB_NAME:=bale}"
+ENVIRONMENT="${ENVIRONMENT:=dev}"
 
 # Allow to skip Docker if a dockerized Postgres database is already running
 if [[ -z "${SKIP_DOCKER}" ]]
 then
   # if a postgres container is running, print instructions to kill it and exit
-  RUNNING_POSTGRES_CONTAINER=$(docker ps --filter 'name=postgres' --format '{{.ID}}')
+  RUNNING_POSTGRES_CONTAINER=$(docker ps --filter "name=postgres_${ENVIRONMENT}" --format '{{.ID}}')
   if [[ -n $RUNNING_POSTGRES_CONTAINER ]]; then
     echo >&2 "there is a postgres container already running, kill it with"
     echo >&2 "    docker kill ${RUNNING_POSTGRES_CONTAINER}"
     exit 1
   fi
-  CONTAINER_NAME="postgres_$(date '+%s')"
+  CONTAINER_NAME="postgres_${ENVIRONMENT}_$(date '+%s')"
   # Launch postgres using Docker
   docker run \
       --env POSTGRES_USER=${SUPERUSER} \
