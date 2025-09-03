@@ -35,11 +35,14 @@ impl Application {
 
         let admin_routes = Router::new().route("/companies", get(get_company_list));
 
+        let api_v1_routes = Router::new()
+            .route("/companies", post(create_company))
+            .route("/companies/{company_id}", get(get_company));
+
         let app: Router = Router::new()
             .route("/health_check", get(health_check))
-            .route("/companies", post(create_company))
-            .route("/companies/{company_id}", get(get_company))
-            .nest("/admin", admin_routes)
+            .nest("/api/v1", api_v1_routes)
+            .nest("/admin/v1", admin_routes)
             .with_state(Arc::new(db_pool));
 
         let server = axum::serve(listener, app);
