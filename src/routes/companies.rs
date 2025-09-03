@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Context;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -61,6 +61,7 @@ pub async fn create_company(
     let company_id = insert_company_in_db(&db_pool, &new_company)
         .await
         .context("Failed to insert company in the database.")?;
+
     Ok((StatusCode::CREATED, Json(company_id)))
 }
 
@@ -88,6 +89,7 @@ async fn insert_company_in_db(
       )
       .fetch_one(db_pool)
       .await?;
+
     Ok(id)
 }
 
@@ -123,8 +125,11 @@ pub async fn get_company(
         .await
         .map_err(|e| match e {
             sqlx::Error::RowNotFound => CompanyError::NotFound,
-            _ => CompanyError::UnexpectedError(anyhow::Error::from(e).context("Failed to fetch company from database.")),
+            _ => CompanyError::UnexpectedError(
+                anyhow::Error::from(e).context("Failed to fetch company from database."),
+            ),
         })?;
+
     Ok(Json(company))
 }
 
@@ -139,5 +144,51 @@ async fn fetch_company_from_db(db_pool: &PgPool, company_id: Uuid) -> Result<Com
     )
     .fetch_one(db_pool)
     .await?;
+
     Ok(company)
+}
+
+pub async fn get_company_list(
+    State(db_pool): State<Arc<PgPool>>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<Vec<Company>>, CompanyError> {
+    // Pagination params
+    let page_number: i64 = params
+        .get("page")
+        .and_then(|p| p.parse::<i64>().ok())
+        .unwrap_or(1)
+        .max(1);
+    let page_size: i64 = params
+        .get("page_size")
+        .and_then(|p| p.parse::<i64>().ok())
+        .unwrap_or(20)
+        .clamp(20, 50);
+
+    let company_list = fetch_company_list_from_db(&db_pool, page_number, page_size)
+        .await
+        .context("Failed to fetch company from database.")?;
+
+    Ok(Json(company_list))
+}
+
+async fn fetch_company_list_from_db(
+    db_pool: &PgPool,
+    page_number: i64,
+    page_size: i64,
+) -> Result<Vec<Company>, sqlx::Error> {
+    let offset = (page_number - 1) * page_size;
+
+    let companies = sqlx::query_as!(
+        Company,
+        r#"
+        SELECT id, name, address_line1, address_line2, city, state, country, pin_code, business_type, gst_number, pan_number, logo_url, created_at, updated_at, created_by, modified_by, deleted_at from companies 
+        LIMIT $1 OFFSET $2
+        "#,
+        page_size,
+        offset
+    )
+    .fetch_all(db_pool)
+    .await?;
+
+    Ok(companies)
 }

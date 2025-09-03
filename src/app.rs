@@ -12,7 +12,7 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 use crate::{
     config::{DatabaseSettings, Settings},
     routes::{
-        companies::{create_company, get_company},
+        companies::{create_company, get_company, get_company_list},
         healthcheck::health_check,
     },
 };
@@ -33,10 +33,13 @@ impl Application {
         let listener = TcpListener::bind(addr).await?;
         let port = listener.local_addr().unwrap().port();
 
+        let admin_routes = Router::new().route("/companies", get(get_company_list));
+
         let app: Router = Router::new()
             .route("/health_check", get(health_check))
             .route("/companies", post(create_company))
             .route("/companies/{company_id}", get(get_company))
+            .nest("/admin", admin_routes)
             .with_state(Arc::new(db_pool));
 
         let server = axum::serve(listener, app);
