@@ -27,7 +27,7 @@ async fn create_company_returns_200_for_valid_form() {
 
     let client = reqwest::Client::new();
     let res = client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body)
         .send()
         .await
@@ -46,7 +46,7 @@ async fn create_company_persists_new_record_in_db() {
 
     let client = reqwest::Client::new();
     let res = client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body)
         .send()
         .await
@@ -87,7 +87,7 @@ async fn read_company_list_returns_all_inserted_records() {
 
     // Insert first company
     let _company_id1: Uuid = client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body1)
         .send()
         .await
@@ -98,7 +98,7 @@ async fn read_company_list_returns_all_inserted_records() {
 
     // Insert second company
     let _company_id2: Uuid = client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body2)
         .send()
         .await
@@ -109,7 +109,7 @@ async fn read_company_list_returns_all_inserted_records() {
 
     // Get all companies
     let res = client
-        .get(format!("{}/admin/companies", app.address))
+        .get(format!("{}/admin/v1/companies", app.address))
         .send()
         .await
         .unwrap();
@@ -136,7 +136,7 @@ async fn read_company_returns_inserted_record() {
 
     let client = reqwest::Client::new();
     let res = client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body)
         .send()
         .await
@@ -144,7 +144,7 @@ async fn read_company_returns_inserted_record() {
     let company_id: Uuid = res.json().await.expect("Failed to parse company id.");
 
     let res = client
-        .get(format!("{}/companies/{}", app.address, company_id))
+        .get(format!("{}/api/v1/companies/{}", app.address, company_id))
         .send()
         .await
         .unwrap();
@@ -164,7 +164,7 @@ async fn read_company_returns_not_found_if_record_doesnt_exist() {
     let company_id = Uuid::new_v4();
     let client = reqwest::Client::new();
     let res = client
-        .get(format!("{}/companies/{}", app.address, company_id))
+        .get(format!("{}/api/v1/companies/{}", app.address, company_id))
         .send()
         .await
         .unwrap();
@@ -187,7 +187,7 @@ async fn read_company_list_with_default_pagination() {
             "name": format!("Company {}", i),
         });
         client
-            .post(format!("{}/companies", app.address))
+            .post(format!("{}/api/v1/companies", app.address))
             .json(&body)
             .send()
             .await
@@ -196,7 +196,7 @@ async fn read_company_list_with_default_pagination() {
 
     // Get companies with default pagination
     let res = client
-        .get(format!("{}/admin/companies", app.address))
+        .get(format!("{}/admin/v1/companies", app.address))
         .send()
         .await
         .unwrap();
@@ -219,17 +219,17 @@ async fn read_company_list_with_custom_pagination() {
             "name": format!("Company {}", i),
         });
         client
-            .post(format!("{}/companies", app.address))
+            .post(format!("{}/api/v1/companies", app.address))
             .json(&body)
             .send()
             .await
             .unwrap();
     }
 
-    // Get first 2 companies (page 1, page_size 25)
+    // Get first 2 companies (page 1, limit 25)
     let res = client
         .get(format!(
-            "{}/admin/companies?page=1&page_size=25",
+            "{}/admin/v1/companies?page=1&limit=25",
             app.address
         ))
         .send()
@@ -242,10 +242,10 @@ async fn read_company_list_with_custom_pagination() {
     assert_eq!(StatusCode::OK, status);
     assert_eq!(25, companies.len());
 
-    // Get remaining company (page 2, page_size 25)
+    // Get remaining company (page 2, limit 25)
     let res = client
         .get(format!(
-            "{}/admin/companies?page=2&page_size=25",
+            "{}/admin/v1/companies?page=2&limit=25",
             app.address
         ))
         .send()
@@ -260,7 +260,7 @@ async fn read_company_list_with_custom_pagination() {
 }
 
 #[tokio::test]
-async fn read_company_list_clamps_page_size() {
+async fn read_company_list_clamps_limit() {
     let app = TestApp::build().await;
 
     // Create 60 companies to properly test clamping
@@ -270,16 +270,16 @@ async fn read_company_list_clamps_page_size() {
             "name": format!("Company {}", i),
         });
         client
-            .post(format!("{}/companies", app.address))
+            .post(format!("{}/api/v1/companies", app.address))
             .json(&body)
             .send()
             .await
             .unwrap();
     }
 
-    // Test page_size=5 (should clamp to 20)
+    // Test limit=5 (should clamp to 20)
     let res = client
-        .get(format!("{}/admin/companies?page_size=5", app.address))
+        .get(format!("{}/admin/v1/companies?limit=5", app.address))
         .send()
         .await
         .unwrap();
@@ -290,9 +290,9 @@ async fn read_company_list_clamps_page_size() {
     assert_eq!(StatusCode::OK, status);
     assert_eq!(20, companies.len()); // Should return 20, not 5
 
-    // Test page_size=100 (should clamp to 50)
+    // Test limit=100 (should clamp to 50)
     let res = client
-        .get(format!("{}/admin/companies?page_size=100", app.address))
+        .get(format!("{}/admin/v1/companies?limit=100", app.address))
         .send()
         .await
         .unwrap();
@@ -303,9 +303,9 @@ async fn read_company_list_clamps_page_size() {
     assert_eq!(StatusCode::OK, status);
     assert_eq!(50, companies.len()); // Should return 50, not 100
 
-    // Test valid page_size=30 (should return 30)
+    // Test valid limit=30 (should return 30)
     let res = client
-        .get(format!("{}/admin/companies?page_size=30", app.address))
+        .get(format!("{}/admin/v1/companies?limit=30", app.address))
         .send()
         .await
         .unwrap();
@@ -326,7 +326,7 @@ async fn read_company_list_handles_invalid_page_numbers() {
         "name": "Test Company",
     });
     client
-        .post(format!("{}/companies", app.address))
+        .post(format!("{}/api/v1/companies", app.address))
         .json(&body)
         .send()
         .await
@@ -334,7 +334,7 @@ async fn read_company_list_handles_invalid_page_numbers() {
 
     // Test negative page (should default to 1)
     let res = client
-        .get(format!("{}/admin/companies?page=-1", app.address))
+        .get(format!("{}/admin/v1/companies?page=-1", app.address))
         .send()
         .await
         .unwrap();
@@ -343,7 +343,7 @@ async fn read_company_list_handles_invalid_page_numbers() {
 
     // Test page 0 (should default to 1)
     let res = client
-        .get(format!("{}/admin/companies?page=0", app.address))
+        .get(format!("{}/admin/v1/companies?page=0", app.address))
         .send()
         .await
         .unwrap();
@@ -352,7 +352,173 @@ async fn read_company_list_handles_invalid_page_numbers() {
 
     // Test non-numeric page (should default to 1)
     let res = client
-        .get(format!("{}/admin/companies?page=abc", app.address))
+        .get(format!("{}/admin/v1/companies?page=abc", app.address))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(StatusCode::BAD_REQUEST, res.status());
+}
+
+// SORTING
+// -------------------------------------------------------------------------------------
+
+#[tokio::test]
+async fn read_company_list_sorts_by_name_ascending_by_default() {
+    let app = TestApp::build().await;
+
+    let client = reqwest::Client::new();
+
+    // Create companies in non-alphabetical order
+    let companies = vec!["Zebra Corp", "Alpha Ltd", "Beta Inc"];
+    for name in &companies {
+        let body = serde_json::json!({"name": name});
+        client
+            .post(format!("{}/api/v1/companies", app.address))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+    }
+
+    let res = client
+        .get(format!("{}/admin/v1/companies", app.address))
+        .send()
+        .await
+        .unwrap();
+
+    let status = res.status();
+    let companies: Vec<Company> = res.json().await.unwrap();
+    let names: Vec<&str> = companies.iter().map(|c| c.name.as_str()).collect();
+
+    assert_eq!(StatusCode::OK, status);
+    assert_eq!(names, vec!["Alpha Ltd", "Beta Inc", "Zebra Corp"]);
+}
+
+#[tokio::test]
+async fn read_company_list_sorts_by_name_descending() {
+    let app = TestApp::build().await;
+
+    let client = reqwest::Client::new();
+
+    // Create companies in non-alphabetical order
+    let companies = vec!["Alpha Ltd", "Zebra Corp", "Beta Inc"];
+    for name in &companies {
+        let body = serde_json::json!({"name": name});
+        client
+            .post(format!("{}/api/v1/companies", app.address))
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+    }
+
+    let res = client
+        .get(format!(
+            "{}/admin/v1/companies?sort=name&order=desc",
+            app.address
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    let status = res.status();
+    let companies: Vec<Company> = res.json().await.unwrap();
+    let names: Vec<&str> = companies.iter().map(|c| c.name.as_str()).collect();
+
+    assert_eq!(StatusCode::OK, status);
+    assert_eq!(names, vec!["Zebra Corp", "Beta Inc", "Alpha Ltd"]);
+}
+
+#[tokio::test]
+async fn read_company_list_sorts_by_created_at_descending() {
+    let app = TestApp::build().await;
+
+    let client = reqwest::Client::new();
+
+    // Create companies with slight delay to ensure different timestamps
+    let body1 = serde_json::json!({"name": "First Company"});
+    client
+        .post(format!("{}/api/v1/companies", app.address))
+        .json(&body1)
+        .send()
+        .await
+        .unwrap();
+
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+    let body2 = serde_json::json!({"name": "Second Company"});
+    client
+        .post(format!("{}/api/v1/companies", app.address))
+        .json(&body2)
+        .send()
+        .await
+        .unwrap();
+
+    let res = client
+        .get(format!(
+            "{}/admin/v1/companies?sort=created_at&order=desc",
+            app.address
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    let status = res.status();
+    let companies: Vec<Company> = res.json().await.unwrap();
+    let names: Vec<&str> = companies.iter().map(|c| c.name.as_str()).collect();
+
+    assert_eq!(StatusCode::OK, status);
+    assert_eq!(names, vec!["Second Company", "First Company"]);
+}
+
+#[tokio::test]
+async fn read_company_list_ignores_invalid_sort_field() {
+    let app = TestApp::build().await;
+
+    let client = reqwest::Client::new();
+
+    let body = serde_json::json!({"name": "Test Company"});
+    client
+        .post(format!("{}/api/v1/companies", app.address))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+
+    // Use invalid sort field - should default to name
+    let res = client
+        .get(format!(
+            "{}/admin/v1/companies?sort=invalid_field&order=desc",
+            app.address
+        ))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(StatusCode::OK, res.status());
+}
+
+#[tokio::test]
+async fn read_company_list_ignores_invalid_order() {
+    let app = TestApp::build().await;
+
+    let client = reqwest::Client::new();
+
+    let body = serde_json::json!({"name": "Test Company"});
+    client
+        .post(format!("{}/api/v1/companies", app.address))
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+
+    // Use invalid order - should default to ASC
+    let res = client
+        .get(format!(
+            "{}/admin/v1/companies?sort=name&order=invalid",
+            app.address
+        ))
         .send()
         .await
         .unwrap();

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Context;
 use axum::{
@@ -10,6 +10,7 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 
 // ERROR
@@ -96,7 +97,7 @@ async fn insert_company_in_db(
 // READ
 // -------------------------------------------------------------------------------------
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+#[derive(Default, Debug, Clone, Deserialize, Serialize, sqlx::FromRow)]
 pub struct Company {
     pub id: Uuid,
     pub name: String,
@@ -115,6 +116,45 @@ pub struct Company {
     pub created_by: Option<Uuid>,
     pub modified_by: Option<Uuid>,
     pub deleted_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Deserialize)]
+pub struct CompanyQuery {
+    page: Option<i64>,
+    limit: Option<i64>,
+    sort: Option<String>,
+    order: Option<String>,
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Display, EnumString)]
+enum SortField {
+    name,
+    created_at,
+}
+
+impl SortField {
+    pub fn parse(val: Option<String>) -> Self {
+        val.as_deref()
+            .map_or(Ok(Self::name), |s| s.parse())
+            .unwrap_or(Self::name)
+    }
+}
+
+#[allow(clippy::upper_case_acronyms)]
+#[derive(Display, EnumString)]
+#[strum(ascii_case_insensitive)]
+enum SortOrder {
+    ASC,
+    DESC,
+}
+
+impl SortOrder {
+    pub fn parse(val: Option<String>) -> Self {
+        val.as_deref()
+            .map_or(Ok(Self::ASC), |s| s.parse())
+            .unwrap_or(Self::ASC)
+    }
 }
 
 pub async fn get_company(
@@ -150,21 +190,9 @@ async fn fetch_company_from_db(db_pool: &PgPool, company_id: Uuid) -> Result<Com
 
 pub async fn get_company_list(
     State(db_pool): State<Arc<PgPool>>,
-    Query(params): Query<HashMap<String, String>>,
+    Query(query): Query<CompanyQuery>,
 ) -> Result<Json<Vec<Company>>, CompanyError> {
-    // Pagination params
-    let page_number: i64 = params
-        .get("page")
-        .and_then(|p| p.parse::<i64>().ok())
-        .unwrap_or(1)
-        .max(1);
-    let page_size: i64 = params
-        .get("page_size")
-        .and_then(|p| p.parse::<i64>().ok())
-        .unwrap_or(20)
-        .clamp(20, 50);
-
-    let company_list = fetch_company_list_from_db(&db_pool, page_number, page_size)
+    let company_list = fetch_company_list_from_db(&db_pool, query)
         .await
         .context("Failed to fetch company from database.")?;
 
@@ -173,22 +201,30 @@ pub async fn get_company_list(
 
 async fn fetch_company_list_from_db(
     db_pool: &PgPool,
-    page_number: i64,
-    page_size: i64,
+    query: CompanyQuery,
 ) -> Result<Vec<Company>, sqlx::Error> {
-    let offset = (page_number - 1) * page_size;
+    // Query params
+    let page = query.page.unwrap_or(1).max(1);
+    let limit = query.limit.unwrap_or(20).clamp(20, 50);
+    let offset = (page - 1) * limit;
+    let sort = SortField::parse(query.sort);
+    let order = SortOrder::parse(query.order);
 
-    let companies = sqlx::query_as!(
-        Company,
+    let query = format!(
         r#"
         SELECT id, name, address_line1, address_line2, city, state, country, pin_code, business_type, gst_number, pan_number, logo_url, created_at, updated_at, created_by, modified_by, deleted_at from companies 
+        WHERE deleted_at IS NULL
+        ORDER BY {} {}
         LIMIT $1 OFFSET $2
         "#,
-        page_size,
-        offset
-    )
-    .fetch_all(db_pool)
-    .await?;
+        sort, order
+    );
+
+    let companies = sqlx::query_as::<_, Company>(&query)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(db_pool)
+        .await?;
 
     Ok(companies)
 }
